@@ -16,14 +16,14 @@ export default function HomeScreen() {
         <WebView
             onTouchStart={e => {
                 if (Platform.OS === 'android') {
-                    touchX.current = e.nativeEvent.pageX;
-                    touchY.current = e.nativeEvent.pageY
+                  touchX.current = e.nativeEvent.pageX;
+                  touchY.current = e.nativeEvent.pageY
                 }
             }}
             onTouchEnd={e => {
                 if (Platform.OS === 'android' && touchX.current - e.nativeEvent.pageX < -20) {
                     if (touchY.current - e.nativeEvent.pageY > -20 && touchY.current - e.nativeEvent.pageY < 20) {
-                    router.back();
+                      router.back();
                     }
                 }
             }}
