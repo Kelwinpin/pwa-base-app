@@ -38,6 +38,10 @@ yarn-error.*
 
 app-example
 
+#lock file
+package-lock.json
+yarn.lock
+
 # generated native folders
 /ios
 /android

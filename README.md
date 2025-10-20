@@ -1,50 +1,162 @@
-# Welcome to your Expo app 👋
+# PWA Base App
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Um aplicativo mobile wrapper construído com React Native e Expo que permite transformar qualquer website em um aplicativo nativo para iOS e Android.
 
-## Get started
+## O que é este projeto?
 
-1. Install dependencies
+Este é um aplicativo baseado em WebView que carrega um website dentro de um container nativo. Perfeito para transformar PWAs (Progressive Web Apps) ou sites responsivos em aplicativos mobile distribuíveis nas lojas de aplicativos.
 
-   ```bash
-   npm install
-   ```
+### Recursos
 
-2. Start the app
+- WebView otimizada com suporte a JavaScript
+- Navegação por gestos (swipe para voltar no Android)
+- Respeita as áreas seguras do dispositivo (status bar, notch, etc.)
+- User Agent customizável
+- Suporte para conteúdo misto (HTTP/HTTPS)
+- Compatível com iOS, Android e Web
 
-   ```bash
-   npx expo start
-   ```
+## Configuração
 
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+### 1. Instalar dependências
 
 ```bash
-npm run reset-project
+npm install
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+### 2. Configurar a URL do seu website
 
-## Learn more
+Edite o arquivo `app/(stack)/url.json` e altere a URL para o seu website:
 
-To learn more about developing your project with Expo, look at the following resources:
+```json
+{
+    "url": "https://seu-site.com"
+}
+```
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+### 3. Iniciar o servidor de desenvolvimento
 
-## Join the community
+```bash
+npm start
+```
 
-Join our community of developers creating universal apps.
+ou com cache limpo:
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+```bash
+npx expo start --clear
+```
+
+### 4. Testar o aplicativo
+
+No terminal, você verá opções para abrir o app em:
+
+- **Desenvolvimento local**: Escaneie o QR code com Expo Go (iOS/Android)
+- **Emulador Android**: Pressione `a`
+- **Simulador iOS**: Pressione `i` (apenas macOS)
+- **Web**: Pressione `w`
+
+## Estrutura do Projeto
+
+```
+pwa-base-app/
+├── app/
+│   ├── config/
+│   │   └── url.json         # Configuração da URL do site
+│   ├── (stack)/
+│   │   ├── index.tsx        # Tela principal com WebView
+│   │   └── _layout.tsx      # Layout do grupo de rotas
+│   └── _layout.tsx          # Layout raiz da aplicação
+├── assets/                  # Imagens e recursos
+├── package.json
+└── README.md
+```
+
+## Personalização
+
+### Alterar o User Agent
+
+Edite o arquivo `app/(stack)/index.tsx` e modifique a variável `customUserAgent`:
+
+```typescript
+const customUserAgent = 'Seu User Agent personalizado';
+```
+
+### Desabilitar navegação por gestos
+
+No arquivo `app/(stack)/index.tsx`, remova ou comente as props `onTouchStart` e `onTouchEnd` do componente `WebView`.
+
+### Adicionar splash screen ou ícone
+
+1. Adicione suas imagens em `assets/images/`
+2. Configure em `app.json` ou `app.config.js`
+
+## Scripts Disponíveis
+
+- `npm start` - Inicia o servidor de desenvolvimento
+- `npm run android` - Abre no emulador Android
+- `npm run ios` - Abre no simulador iOS (apenas macOS)
+- `npm run web` - Abre no navegador web
+- `npm run lint` - Executa o linter
+
+## Build para Produção
+
+### Android (APK/AAB)
+
+```bash
+eas build --platform android
+```
+
+### iOS (IPA)
+
+```bash
+eas build --platform ios
+```
+
+Você precisará configurar o [EAS Build](https://docs.expo.dev/build/setup/) primeiro.
+
+## Tecnologias Utilizadas
+
+- [Expo](https://expo.dev) - Framework para React Native
+- [Expo Router](https://docs.expo.dev/router/introduction/) - Roteamento baseado em arquivos
+- [React Native WebView](https://github.com/react-native-webview/react-native-webview) - Componente WebView
+- [React Native Safe Area Context](https://github.com/th3rdwave/react-native-safe-area-context) - Gerenciamento de áreas seguras
+- TypeScript - Tipagem estática
+
+## Requisitos
+
+- Node.js 18+
+- npm ou yarn
+- Expo CLI
+- Para iOS: macOS com Xcode
+- Para Android: Android Studio
+
+## Solução de Problemas
+
+### WebView não carrega
+
+1. Verifique se a URL em `url.json` está correta
+2. Certifique-se de que o site permite ser carregado em iframe
+3. Verifique a conexão com a internet
+
+### Erro de tipos do TypeScript
+
+```bash
+npm install --save-dev @types/react-native
+```
+
+### Cache corrompido
+
+```bash
+rm -rf node_modules
+npm install
+npx expo start --clear
+```
+
+## Licença
+
+Este projeto está sob a licença MIT.
+
+## Suporte
+
+Para questões e suporte:
+- [Documentação do Expo](https://docs.expo.dev/)
+- [Comunidade Expo no Discord](https://chat.expo.dev)
