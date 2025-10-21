@@ -7,7 +7,7 @@ export default function RootLayout() {
     <Stack>
         <Stack.Screen 
           name="(stack)" 
-          options={{ headerShown: false }} 
+          options={{ headerShown: false}}
         />
     </Stack>
   );
