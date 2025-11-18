@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Platform, StatusBar, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import WebView from "react-native-webview";
@@ -12,8 +12,23 @@ export default function HomeScreen() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const customUserAgent = 'Mozilla/5.0 (iPhone; CPU iPhone OS 15_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/102.0.5005.87 Mobile/15E148 Safari/604.1';
 
+  // Calcula o padding inferior - usa o inset ou fallback para Android
+  const bottomPadding = Platform.OS === 'android'
+    ? Math.max(insets.bottom, 48) // 48px é um fallback comum para botões de navegação Android
+    : insets.bottom;
+
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      StatusBar.setBackgroundColor('#ffffff');
+      StatusBar.setBarStyle('dark-content');
+      StatusBar.setTranslucent(false);
+    }
+    console.log('Safe Area Insets:', insets);
+    console.log('Bottom Padding usado:', bottomPadding);
+  }, [insets, bottomPadding]);
+
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={styles.container}>
         <StatusBar
           barStyle="dark-content"
           backgroundColor="#ffffff"
@@ -37,35 +52,64 @@ export default function HomeScreen() {
             source={{ uri: source.url }}
             style={{ flex: 1 }}
             javaScriptEnabled={true}
+            domStorageEnabled={true}
+            mediaPlaybackRequiresUserAction={false}
+            allowsInlineMediaPlayback={true}
+            // IMPORTANTE: Configuração para aceitar uploads de arquivos
+            allowFileAccess={true}
+            allowFileAccessFromFileURLs={true}
+            allowUniversalAccessFromFileURLs={true}
+            // Suporte para captura de mídia (foto picker e câmera)
+            mediaCapturePermissionGrantType="grant"
             mixedContentMode={"compatibility"}
             originWhitelist={["*"]}
             userAgent={customUserAgent}
             allowsBackForwardNavigationGestures={true}
-            scalesPageToFit={false}
-            setBuiltInZoomControls={false}
-            setDisplayZoomControls={false}
-            injectedJavaScript={`
-              // Remove meta viewport existente
-              const existingMeta = document.querySelector('meta[name="viewport"]');
-              if (existingMeta) {
-                existingMeta.remove();
-              }
-
-              // Adiciona nova meta viewport
+            scalesPageToFit={true}
+            showsVerticalScrollIndicator={true}
+            showsHorizontalScrollIndicator={false}
+            scrollEnabled={true}
+            bounces={true}
+            injectedJavaScriptBeforeContentLoaded={`
+              // Configura viewport para prevenir zoom mantendo scroll
               const meta = document.createElement('meta');
-              meta.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
               meta.setAttribute('name', 'viewport');
-              document.getElementsByTagName('head')[0].appendChild(meta);
+              meta.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover');
+              document.head.appendChild(meta);
 
-              // Desabilita zoom por eventos touch
+              // Injeta CSS para safe area com valor fixo para Android
+              const style = document.createElement('style');
+              style.innerHTML = \`
+                * {
+                  box-sizing: border-box;
+                }
+                html, body {
+                  margin: 0;
+                  padding: 0;
+                  height: 100%;
+                  overflow-x: hidden;
+                }
+                body {
+                  padding-bottom: ${bottomPadding}px !important;
+                }
+              \`;
+              document.head.appendChild(style);
+              true;
+            `}
+            injectedJavaScript={`
+              // Previne zoom por toque duplo
+              let lastTouchEnd = 0;
+              document.addEventListener('touchend', function(event) {
+                const now = Date.now();
+                if (now - lastTouchEnd <= 300) {
+                  event.preventDefault();
+                }
+                lastTouchEnd = now;
+              }, { passive: false });
+
+              // Previne pinch zoom
               document.addEventListener('gesturestart', function(e) {
                 e.preventDefault();
-              });
-
-              document.addEventListener('touchmove', function(e) {
-                if (e.scale !== 1) {
-                  e.preventDefault();
-                }
               }, { passive: false });
 
               true;
