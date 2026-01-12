@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "Life in Fit Saúde",
+    "name": "Rede Life Saúde",
     "slug": "lifeinfit",
-    "version": "1.0.4",
+    "version": "1.0.10",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "pwabaseapp",
@@ -11,12 +11,12 @@
     "splash": {
       "image": "./assets/images/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#FFA311"
     },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.lifeinfit.ally",
-      "buildNumber": "1.0.4",
+      "buildNumber": "1.0.7",
       "infoPlist": {
         "NSCameraUsageDescription": "Usado para videochamadas de teleconsulta com profissionais de saúde.",
         "NSMicrophoneUsageDescription": "Usado para áudio em teleconsultas.",
@@ -28,7 +28,7 @@
     },
     "android": {
       "package": "com.lifeinfitsaude.ally",
-      "versionCode": 3,
+      "versionCode": 10,
       "adaptiveIcon": {
         "backgroundColor": "#ffffff",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -39,7 +39,9 @@
         "CAMERA",
         "RECORD_AUDIO",
         "INTERNET",
-        "ACCESS_NETWORK_STATE"
+        "ACCESS_NETWORK_STATE",
+        "MODIFY_AUDIO_SETTINGS",
+        "WAKE_LOCK"
       ],
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
@@ -66,6 +68,7 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
+      "./app.plugin.js",
       "expo-router",
       [
         "expo-splash-screen",
@@ -73,9 +76,21 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff",
+          "backgroundColor": "#FFA311",
           "dark": {
-            "backgroundColor": "#ffffff"
+            "backgroundColor": "#FFA311"
+          }
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true,
+            "usesNonExemptEncryption": false,
+            "manifestQueries": {
+              "package": ["android.hardware.camera", "android.hardware.camera.autofocus"]
+            }
           }
         }
       ]

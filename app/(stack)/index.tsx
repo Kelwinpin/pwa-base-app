@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
-import { useEffect, useRef } from 'react';
-import { Linking, PermissionsAndroid, Platform, StatusBar, StyleSheet, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Linking, PermissionsAndroid, Platform, StatusBar, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import WebView, { WebViewNavigation } from "react-native-webview";
 import type { ShouldStartLoadRequest } from 'react-native-webview/lib/WebViewTypes';
@@ -11,6 +11,7 @@ export default function HomeScreen() {
   const touchX = useRef(0);
   const touchY = useRef(0);
   const webViewRef = useRef<WebView>(null);
+  const [permissionsGranted, setPermissionsGranted] = useState(Platform.OS === 'ios');
   const customUserAgent = 'Mozilla/5.0 (iPhone; CPU iPhone OS 15_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/102.0.5005.87 Mobile/15E148 Safari/604.1';
 
   const bottomPadding = Platform.OS === 'android'
@@ -29,19 +30,32 @@ export default function HomeScreen() {
 
   const requestPermissions = async () => {
     try {
-      const granted = await PermissionsAndroid.requestMultiple([
-        PermissionsAndroid.PERMISSIONS.CAMERA,
-        PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
-      ]);
-      
-      if (
-        granted['android.permission.CAMERA'] === PermissionsAndroid.RESULTS.GRANTED &&
-        granted['android.permission.RECORD_AUDIO'] === PermissionsAndroid.RESULTS.GRANTED
-      ) {
+      const cameraCheck = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.CAMERA);
+      const audioCheck = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
+
+      let cameraGranted = cameraCheck;
+      let audioGranted = audioCheck;
+
+      if (!cameraCheck || !audioCheck) {
+        const granted = await PermissionsAndroid.requestMultiple([
+          PermissionsAndroid.PERMISSIONS.CAMERA,
+          PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+        ]);
+
+        cameraGranted = granted['android.permission.CAMERA'] === PermissionsAndroid.RESULTS.GRANTED;
+        audioGranted = granted['android.permission.RECORD_AUDIO'] === PermissionsAndroid.RESULTS.GRANTED;
+      }
+
+      if (cameraGranted && audioGranted) {
         console.log('Permissões concedidas');
+        setPermissionsGranted(true);
+      } else {
+        console.warn('Permissões negadas - App pode não funcionar corretamente');
+        setPermissionsGranted(true);
       }
     } catch (err) {
-      console.warn(err);
+      console.warn('Erro ao solicitar permissões:', err);
+      setPermissionsGranted(true);
     }
   };
 
@@ -87,6 +101,22 @@ export default function HomeScreen() {
     return true;
   };
 
+  // Aguarda permissões no Android
+  if (!permissionsGranted) {
+    return (
+      <View style={styles.container}>
+        <StatusBar
+          barStyle="dark-content"
+          backgroundColor="#ffffff"
+          translucent={false}
+        />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#FFA311" />
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <StatusBar
@@ -119,26 +149,39 @@ export default function HomeScreen() {
         allowFileAccess={true}
         allowFileAccessFromFileURLs={true}
         allowUniversalAccessFromFileURLs={true}
-        
-        mediaCapturePermissionGrantType="grant"
+        geolocationEnabled={true}
 
-        // @ts-ignore - onPermissionRequest não está nos tipos oficiais mas funciona no Android
-        onPermissionRequest={(request: { resources: string | string[]; grant: (resources: any) => void; deny: () => void; }) => {
-          if (Platform.OS === 'android') {
-            if (request.resources.includes('camera') || 
-                request.resources.includes('microphone') ||
-                request.resources.includes('video') ||
-                request.resources.includes('audio')) {
-              request.grant(request.resources);
-            } else {
-              request.deny();
-            }
+        // @ts-ignore - Props Android específicas para permissões de mídia
+        androidPermissionRequest={(request: any) => {
+          console.log('[Android] Permissão solicitada:', JSON.stringify(request));
+          if (request && request.grant) {
+            console.log('[Android] Concedendo permissões:', request.resources);
+            request.grant(request.resources);
+          }
+          return true;
+        }}
+
+        // @ts-ignore - onPermissionRequest para versões mais antigas
+        onPermissionRequest={(request: any) => {
+          console.log('[WebView] Permissão solicitada:', JSON.stringify(request));
+          if (request && request.grant) {
+            console.log('[WebView] Concedendo permissões:', request.resources);
+            request.grant(request.resources);
           }
         }}
         
         onShouldStartLoadWithRequest={handleShouldStartLoadWithRequest}
         onNavigationStateChange={handleNavigationStateChange}
-        
+
+        onMessage={(event) => {
+          console.log('[WebView Message]:', event.nativeEvent.data);
+        }}
+
+        onError={(syntheticEvent) => {
+          const { nativeEvent } = syntheticEvent;
+          console.error('[WebView Error]:', nativeEvent);
+        }}
+
         mixedContentMode={"compatibility"}
         originWhitelist={["*"]}
         userAgent={customUserAgent}
@@ -170,6 +213,24 @@ export default function HomeScreen() {
             }
           \`;
           document.head.appendChild(style);
+
+          // Intercepta getUserMedia para debug
+          if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+            const originalGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+            navigator.mediaDevices.getUserMedia = function(constraints) {
+              console.log('[PWA] getUserMedia chamado com:', JSON.stringify(constraints));
+              return originalGetUserMedia(constraints)
+                .then(stream => {
+                  console.log('[PWA] getUserMedia: stream obtido com sucesso');
+                  return stream;
+                })
+                .catch(error => {
+                  console.error('[PWA] getUserMedia: erro -', error.name, error.message);
+                  throw error;
+                });
+            };
+          }
+
           true;
         `}
         injectedJavaScript={`
@@ -196,5 +257,11 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
   },
 });

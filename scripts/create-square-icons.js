@@ -78,7 +78,7 @@ async function createSquareIcons() {
       .png()
       .toFile(path.join(outputDir, 'icon.png'));
 
-    // Android Adaptive - Foreground (apenas logo branco, maior)
+    // Android Adaptive - Foreground (apenas logo branco, tamanho menor para não ficar cortado)
     console.log('✓ Gerando android-icon-foreground.png (1024x1024)');
     const foregroundLogo = await sharp(whiteLogoBuffer)
       .resize(800, 800, { fit: 'inside', background: { r: 0, g: 0, b: 0, alpha: 0 } })
@@ -134,8 +134,15 @@ async function createSquareIcons() {
       .png()
       .toFile(path.join(outputDir, 'favicon.png'));
 
-    // Splash icon (logo branco sem fundo)
+    // Splash icon (logo branco sem fundo, para aparecer em fundo claro)
     console.log('✓ Gerando splash-icon.png (1024x1024)');
+
+    // Criar logo branco para o splash
+    const splashLogo = await sharp(whiteLogoBuffer)
+      .resize(500, 500, { fit: 'inside' })
+      .png()
+      .toBuffer();
+
     await sharp({
       create: {
         width: 1024,
@@ -145,7 +152,7 @@ async function createSquareIcons() {
       }
     })
       .composite([{
-        input: await sharp(whiteLogoBuffer).resize(600, 600, { fit: 'inside' }).png().toBuffer(),
+        input: splashLogo,
         gravity: 'center'
       }])
       .png()
