@@ -16,10 +16,6 @@
     }
   },
   "submit": {
-    "production": {
-      "ios": {
-        "companyName": "ALLY CORP BENEFITS BRASIL LTDA"
-      }
-    }
+    "production": {}
   }
 }

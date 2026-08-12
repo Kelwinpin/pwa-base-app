@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "Rede Life Saúde",
-    "slug": "lifeinfit",
-    "version": "1.0.10",
+    "name": "Anota aí",
+    "slug": "anotaai",
+    "version": "0.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "pwabaseapp",
@@ -11,26 +11,26 @@
     "splash": {
       "image": "./assets/images/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#FFA311"
+      "backgroundColor": "#f2e9d6"
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.lifeinfit.ally",
-      "buildNumber": "1.0.7",
+      "bundleIdentifier": "com.siscompy.anotaai",
+      "buildNumber": "1.0.0",
       "infoPlist": {
-        "NSCameraUsageDescription": "Usado para videochamadas de teleconsulta com profissionais de saúde.",
-        "NSMicrophoneUsageDescription": "Usado para áudio em teleconsultas.",
+        "NSCameraUsageDescription": "Usado para tirar fotos.",
         "ITSAppUsesNonExemptEncryption": false
       },
-      "associatedDomains": [
-        "applinks:lifeinfit.com"
-      ]
+      "associatedDomains": ["applinks:siscompy.com"]
+    },
+    "androidNavigationBar": {
+      "barStyle": "dark-content"
     },
     "android": {
-      "package": "com.lifeinfitsaude.ally",
-      "versionCode": 10,
+      "package": "com.siscompy.anotaai",
+      "versionCode": 1,
       "adaptiveIcon": {
-        "backgroundColor": "#ffffff",
+        "backgroundColor": "#f2e9d6",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
@@ -53,13 +53,10 @@
           "data": [
             {
               "scheme": "https",
-              "host": "lifeinfit.com"
+              "host": "siscompy.com"
             }
           ],
-          "category": [
-            "BROWSABLE",
-            "DEFAULT"
-          ]
+          "category": ["BROWSABLE", "DEFAULT"]
         }
       ]
     },
@@ -76,9 +73,9 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#FFA311",
+          "backgroundColor": "#f2e9d6",
           "dark": {
-            "backgroundColor": "#FFA311"
+            "backgroundColor": "#f2e9d6"
           }
         }
       ],
@@ -89,7 +86,10 @@
             "usesCleartextTraffic": true,
             "usesNonExemptEncryption": false,
             "manifestQueries": {
-              "package": ["android.hardware.camera", "android.hardware.camera.autofocus"]
+              "package": [
+                "android.hardware.camera",
+                "android.hardware.camera.autofocus"
+              ]
             }
           }
         }
