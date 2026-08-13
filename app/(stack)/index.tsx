@@ -1,4 +1,6 @@
+import * as LocalAuthentication from "expo-local-authentication";
 import { router } from "expo-router";
+import * as SecureStore from "expo-secure-store";
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -13,6 +15,32 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import WebView, { WebViewNavigation } from "react-native-webview";
 import type { ShouldStartLoadRequest } from "react-native-webview/lib/WebViewTypes";
 import source from "../config/url.json";
+
+// Chave usada no SecureStore pra guardar o refresh token — permite login
+// automático via biometria sem precisar digitar email/senha de novo.
+const REFRESH_TOKEN_KEY = "cd_refresh_token";
+
+function buildRestoreSessionScript(refreshToken: string): string {
+  return `
+    (function () {
+      fetch('/api/auth/restore-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken: ${JSON.stringify(refreshToken)} }),
+      })
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+          if (data && data.success) {
+            window.location.href = '/painel';
+          }
+        })
+        .catch(function (err) {
+          console.error('[restore-session] falhou', err);
+        });
+    })();
+    true;
+  `;
+}
 
 // Trava o zoom dentro do WebView (pinça, duplo toque e zoom de texto do SO).
 // No iOS não existe prop nativa pra isso, então o bloqueio vem daqui.
@@ -91,20 +119,59 @@ export default function HomeScreen() {
   const customUserAgent =
     "Mozilla/5.0 (iPhone; CPU iPhone OS 15_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/102.0.5005.87 Mobile/15E148 Safari/604.1";
 
-  // Com edge-to-edge a barra de navegação fica transparente e o conteúdo passa
-  // por baixo dela. Reservar o inset deixa essa faixa com o fundo do container,
-  // que é a mesma cor da status bar.
+  // Com edge-to-edge as barras do sistema ficam transparentes e o conteúdo passa
+  // por baixo delas. Reservar os insets deixa essas faixas com o fundo do
+  // container (a mesma cor da status bar) e o WebView entre elas.
+  // Onde o sistema já reserva o espaço, o inset vem 0 e nada é somado.
+  const topPadding = Platform.OS === "android" ? insets.top : 0;
   const bottomPadding = Platform.OS === "android" ? insets.bottom : 0;
+
+  // Fluxo de login biométrico: se existe um refresh token guardado e a
+  // biometria confirma, injeta um script que restaura a sessão assim que o
+  // WebView terminar de carregar (precisa das duas coisas prontas).
+  const [webViewLoaded, setWebViewLoaded] = useState(false);
+  const [biometricToken, setBiometricToken] = useState<string | null>(null);
+  const restoreAttempted = useRef(false);
 
   useEffect(() => {
     if (Platform.OS === "android") {
-      StatusBar.setBackgroundColor("#f2e9d6");
       StatusBar.setBarStyle("dark-content");
-      StatusBar.setTranslucent(false);
 
       requestPermissions();
     }
   }, []);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const storedToken = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
+        if (!storedToken) return;
+
+        const hasHardware = await LocalAuthentication.hasHardwareAsync();
+        const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+        if (!hasHardware || !isEnrolled) return;
+
+        const result = await LocalAuthentication.authenticateAsync({
+          promptMessage: "Entrar na Caderneta Digital",
+          cancelLabel: "Cancelar",
+        });
+        if (result.success) {
+          setBiometricToken(storedToken);
+        }
+      } catch (err) {
+        console.warn("[Biometria] Erro ao autenticar:", err);
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (webViewLoaded && biometricToken && !restoreAttempted.current) {
+      restoreAttempted.current = true;
+      webViewRef.current?.injectJavaScript(
+        buildRestoreSessionScript(biometricToken),
+      );
+    }
+  }, [webViewLoaded, biometricToken]);
 
   const requestPermissions = async () => {
     try {
@@ -196,12 +263,13 @@ export default function HomeScreen() {
   // Aguarda permissões no Android
   if (!permissionsGranted) {
     return (
-      <View style={[styles.container, { paddingBottom: bottomPadding }]}>
-        <StatusBar
-          barStyle="dark-content"
-          backgroundColor="#f2e9d6"
-          translucent={false}
-        />
+      <View
+        style={[
+          styles.container,
+          { paddingTop: topPadding, paddingBottom: bottomPadding },
+        ]}
+      >
+        <StatusBar barStyle="dark-content" />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#1e3a5f" />
         </View>
@@ -210,12 +278,13 @@ export default function HomeScreen() {
   }
 
   return (
-    <View style={[styles.container, { paddingBottom: bottomPadding }]}>
-      <StatusBar
-        barStyle="dark-content"
-        backgroundColor="#f2e9d6"
-        translucent={false}
-      />
+    <View
+      style={[
+        styles.container,
+        { paddingTop: topPadding, paddingBottom: bottomPadding },
+      ]}
+    >
+      <StatusBar barStyle="dark-content" />
       <WebView
         ref={webViewRef}
         onTouchStart={(e) => {

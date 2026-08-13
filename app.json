@@ -19,16 +19,19 @@
       "buildNumber": "1.0.0",
       "infoPlist": {
         "NSCameraUsageDescription": "Usado para tirar fotos.",
+        "NSFaceIDUsageDescription": "Usado para entrar no app com Face ID.",
         "ITSAppUsesNonExemptEncryption": false
       },
-      "associatedDomains": ["applinks:siscompy.com"]
+      "associatedDomains": [
+        "applinks:siscompy.com"
+      ]
     },
     "androidNavigationBar": {
       "barStyle": "dark-content"
     },
     "android": {
       "package": "com.siscompy.anotaai",
-      "versionCode": 1,
+      "versionCode": 2,
       "adaptiveIcon": {
         "backgroundColor": "#f2e9d6",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -56,7 +59,10 @@
               "host": "siscompy.com"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ]
     },
@@ -93,7 +99,8 @@
             }
           }
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true,
@@ -102,7 +109,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "c0c0623e-d941-40be-acc6-08bf31a931bd"
+        "projectId": "30fb6c66-52b6-436e-9dad-0ae27b1a5bb3"
       }
     },
     "owner": "kelwin.pin"
