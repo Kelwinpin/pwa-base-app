@@ -14,13 +14,45 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import WebView, { WebViewNavigation } from "react-native-webview";
 import type { ShouldStartLoadRequest } from "react-native-webview/lib/WebViewTypes";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
 import source from "../config/url.json";
 
 // Chave usada no SecureStore pra guardar o refresh token — permite login
 // automático via biometria sem precisar digitar email/senha de novo.
 const REFRESH_TOKEN_KEY = "cd_refresh_token";
 
-function buildRestoreSessionScript(refreshToken: string): string {
+// Expressão JS que resolve a URL vinda do payload da push contra a origem do
+// PWA e devolve `null` se ela apontar pra fora — sem isso qualquer notificação
+// conseguiria levar o WebView pra outro site.
+function buildResolvedUrlExpression(rawUrl: string, baseUrl: string): string {
+  return `(function () {
+        try {
+          var target = new URL(${JSON.stringify(rawUrl)}, window.location.href);
+          var allowed = new URL(${JSON.stringify(baseUrl)});
+          if (target.origin !== allowed.origin) {
+            console.warn('[push] url fora da origem do app, ignorada:', target.href);
+            return null;
+          }
+          return target.href;
+        } catch (err) {
+          console.error('[push] url invalida', err);
+          return null;
+        }
+      })()`;
+}
+
+// `pendingUrl` só vem preenchida quando o app foi aberto por uma notificação com
+// `data.url`: nesse caso o restore leva direto pra rota da notificação, em vez
+// do painel, pra não desfazer o deep link logo depois de navegar.
+function buildRestoreSessionScript(
+  refreshToken: string,
+  pendingUrl: string | null,
+  baseUrl: string,
+): string {
+  const destination = pendingUrl
+    ? `${buildResolvedUrlExpression(pendingUrl, baseUrl)} || '/painel'`
+    : `'/painel'`;
+
   return `
     (function () {
       fetch('/api/auth/restore-session', {
@@ -31,12 +63,45 @@ function buildRestoreSessionScript(refreshToken: string): string {
         .then(function (res) { return res.json(); })
         .then(function (data) {
           if (data && data.success) {
-            window.location.href = '/painel';
+            window.location.href = ${destination};
           }
         })
         .catch(function (err) {
           console.error('[restore-session] falhou', err);
         });
+    })();
+    true;
+  `;
+}
+
+// Entrega o push token pro PWA. Fica num global (pra quem lê no mount) e também
+// dispara um evento (pra quem já estava escutando quando o token chegou).
+function buildPushTokenScript(token: string): string {
+  return `
+    (function () {
+      window.__EXPO_PUSH_TOKEN__ = ${JSON.stringify(token)};
+      window.__NATIVE_PLATFORM__ = ${JSON.stringify(Platform.OS)};
+      window.dispatchEvent(
+        new CustomEvent('expo:push-token', {
+          detail: {
+            token: ${JSON.stringify(token)},
+            platform: ${JSON.stringify(Platform.OS)},
+          },
+        })
+      );
+    })();
+    true;
+  `;
+}
+
+// Navega o WebView pra rota que veio no `data.url` da notificação.
+function buildOpenUrlScript(rawUrl: string, baseUrl: string): string {
+  return `
+    (function () {
+      var href = ${buildResolvedUrlExpression(rawUrl, baseUrl)};
+      if (href && href !== window.location.href) {
+        window.location.href = href;
+      }
     })();
     true;
   `;
@@ -129,9 +194,22 @@ export default function HomeScreen() {
   // Fluxo de login biométrico: se existe um refresh token guardado e a
   // biometria confirma, injeta um script que restaura a sessão assim que o
   // WebView terminar de carregar (precisa das duas coisas prontas).
-  const [webViewLoaded, setWebViewLoaded] = useState(false);
+  // Conta os loads em vez de um booleano: cada navegação de página zera o
+  // `window` do PWA, então o push token precisa ser reinjetado a cada uma.
+  const [loadCount, setLoadCount] = useState(0);
+  const webViewLoaded = loadCount > 0;
   const [biometricToken, setBiometricToken] = useState<string | null>(null);
-  const restoreAttempted = useRef(false);
+  const [restoreInjected, setRestoreInjected] = useState(false);
+  // Vira `true` quando o fluxo de biometria termina de qualquer jeito (sem
+  // token guardado, sem hardware, autenticou ou cancelou). O deep link da push
+  // espera esse sinal pra saber se pode navegar sozinho.
+  const [biometricSettled, setBiometricSettled] = useState(false);
+
+  // Só pede notificação depois que o fluxo de câmera/microfone terminou, pra
+  // não empilhar dois diálogos de permissão na cara do usuário.
+  const { expoPushToken, pendingUrl, clearPendingUrl } = usePushNotifications({
+    enabled: permissionsGranted,
+  });
 
   useEffect(() => {
     if (Platform.OS === "android") {
@@ -160,18 +238,51 @@ export default function HomeScreen() {
         }
       } catch (err) {
         console.warn("[Biometria] Erro ao autenticar:", err);
+      } finally {
+        setBiometricSettled(true);
       }
     })();
   }, []);
 
   useEffect(() => {
-    if (webViewLoaded && biometricToken && !restoreAttempted.current) {
-      restoreAttempted.current = true;
-      webViewRef.current?.injectJavaScript(
-        buildRestoreSessionScript(biometricToken),
-      );
-    }
-  }, [webViewLoaded, biometricToken]);
+    if (!webViewLoaded || !biometricToken || restoreInjected) return;
+
+    setRestoreInjected(true);
+    webViewRef.current?.injectJavaScript(
+      buildRestoreSessionScript(biometricToken, pendingUrl, source.url),
+    );
+    // O redirect do restore já leva pra URL da notificação; consumir aqui evita
+    // o efeito de deep link navegar de novo por cima.
+    if (pendingUrl) clearPendingUrl();
+  }, [webViewLoaded, biometricToken, restoreInjected, pendingUrl, clearPendingUrl]);
+
+  // Reinjeta o token a cada load: quem vincula ele ao usuário logado é o PWA,
+  // e depois de um reload/navegação o global anterior já não existe mais.
+  useEffect(() => {
+    if (!webViewLoaded || !expoPushToken) return;
+    webViewRef.current?.injectJavaScript(buildPushTokenScript(expoPushToken));
+  }, [loadCount, webViewLoaded, expoPushToken]);
+
+  // Deep link da notificação. No cold start a resposta chega antes do WebView
+  // existir, então a URL fica pendente até o primeiro load terminar. Quando a
+  // biometria vai restaurar a sessão, quem navega é o script de restore — aqui
+  // a gente espera esse fluxo pra não carregar a rota ainda deslogado.
+  useEffect(() => {
+    if (!webViewLoaded || !pendingUrl || !biometricSettled) return;
+    if (biometricToken && !restoreInjected) return;
+
+    webViewRef.current?.injectJavaScript(
+      buildOpenUrlScript(pendingUrl, source.url),
+    );
+    clearPendingUrl();
+  }, [
+    webViewLoaded,
+    pendingUrl,
+    biometricSettled,
+    biometricToken,
+    restoreInjected,
+    clearPendingUrl,
+  ]);
 
   const requestPermissions = async () => {
     try {
@@ -342,8 +453,27 @@ export default function HomeScreen() {
         }}
         onShouldStartLoadWithRequest={handleShouldStartLoadWithRequest}
         onNavigationStateChange={handleNavigationStateChange}
+        onLoadEnd={() => setLoadCount((count) => count + 1)}
         onMessage={(event) => {
-          console.log("[WebView Message]:", event.nativeEvent.data);
+          let data: { type?: string; refreshToken?: string } | null = null;
+          try {
+            data = JSON.parse(event.nativeEvent.data);
+          } catch {
+            console.log("[WebView Message]:", event.nativeEvent.data);
+            return;
+          }
+
+          if (data?.type === "AUTH_TOKENS" && typeof data.refreshToken === "string") {
+            SecureStore.setItemAsync(REFRESH_TOKEN_KEY, data.refreshToken).catch((err) =>
+              console.warn("[Biometria] Erro ao salvar token:", err),
+            );
+          } else if (data?.type === "AUTH_LOGOUT") {
+            SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY).catch((err) =>
+              console.warn("[Biometria] Erro ao remover token:", err),
+            );
+          } else {
+            console.log("[WebView Message]:", event.nativeEvent.data);
+          }
         }}
         onError={(syntheticEvent) => {
           const { nativeEvent } = syntheticEvent;

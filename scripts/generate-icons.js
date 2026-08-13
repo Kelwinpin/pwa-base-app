@@ -148,13 +148,19 @@ async function generateIcons() {
   await render({ size: 1024, background: null, ink: '#000000', paper: 'none', scale: 0.62 })
     .toFile(path.join(outputDir, 'android-icon-monochrome.png'));
 
-  // 5. Favicon
+  // 5. Notificação Android — o sistema usa só o canal alpha, então a arte vai
+  //    branca e vazada; a cor vem do `color` do plugin expo-notifications
+  console.log('✓ notification-icon.png (96x96)');
+  await render({ size: 96, background: null, ink: '#ffffff', paper: 'none', scale: 0.82 })
+    .toFile(path.join(outputDir, 'notification-icon.png'));
+
+  // 6. Favicon
   console.log('✓ favicon.png (48x48)');
   await render({ size: 256, background: CREAM, ink: INK, paper: CREAM, scale: 0.86 })
     .resize(48, 48)
     .toFile(path.join(outputDir, 'favicon.png'));
 
-  // 6. Splash — sem fundo (o backgroundColor do app.json já é creme)
+  // 7. Splash — sem fundo (o backgroundColor do app.json já é creme)
   console.log('✓ splash-icon.png (1024x1024)');
   await render({ size: 1024, background: null, ink: INK, paper: CREAM, scale: 0.82 })
     .toFile(path.join(outputDir, 'splash-icon.png'));

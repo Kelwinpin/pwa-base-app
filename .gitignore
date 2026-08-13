@@ -18,6 +18,14 @@ expo-env.d.ts
 *.key
 *.mobileprovision
 
+# Service account do Firebase (FCM V1) — segredo, diferente do google-services.json
+*firebase-adminsdk*.json
+google-service-account*.json
+
+# Credenciais baixadas da EAS (keystore + senhas em texto puro)
+credentials.json
+credentials/
+
 # Metro
 .metro-health-check*
 

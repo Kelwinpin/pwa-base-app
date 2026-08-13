@@ -22,16 +22,15 @@
         "NSFaceIDUsageDescription": "Usado para entrar no app com Face ID.",
         "ITSAppUsesNonExemptEncryption": false
       },
-      "associatedDomains": [
-        "applinks:siscompy.com"
-      ]
+      "associatedDomains": ["applinks:siscompy.com"]
     },
     "androidNavigationBar": {
       "barStyle": "dark-content"
     },
     "android": {
       "package": "com.siscompy.anotaai",
-      "versionCode": 2,
+      "versionCode": 3,
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#f2e9d6",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -44,7 +43,9 @@
         "INTERNET",
         "ACCESS_NETWORK_STATE",
         "MODIFY_AUDIO_SETTINGS",
-        "WAKE_LOCK"
+        "WAKE_LOCK",
+        "POST_NOTIFICATIONS",
+        "VIBRATE"
       ],
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
@@ -59,10 +60,7 @@
               "host": "siscompy.com"
             }
           ],
-          "category": [
-            "BROWSABLE",
-            "DEFAULT"
-          ]
+          "category": ["BROWSABLE", "DEFAULT"]
         }
       ]
     },
@@ -100,7 +98,15 @@
           }
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/notification-icon.png",
+          "color": "#2a5580",
+          "defaultChannel": "default"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

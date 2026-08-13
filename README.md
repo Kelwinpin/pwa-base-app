@@ -13,6 +13,7 @@ Este é um aplicativo baseado em WebView que carrega um website dentro de um con
 - Respeita as áreas seguras do dispositivo (status bar, notch, etc.)
 - User Agent customizável
 - Suporte para conteúdo misto (HTTP/HTTPS)
+- Push notifications nativas entregues ao PWA (ver seção abaixo)
 - Compatível com iOS, Android e Web
 
 ## Configuração
@@ -65,7 +66,10 @@ pwa-base-app/
 │   │   ├── index.tsx        # Tela principal com WebView
 │   │   └── _layout.tsx      # Layout do grupo de rotas
 │   └── _layout.tsx          # Layout raiz da aplicação
+├── hooks/
+│   └── usePushNotifications.ts  # Permissão, token e deep link das push
 ├── assets/                  # Imagens e recursos
+├── google-services.json     # Config do Firebase (FCM) para Android
 ├── package.json
 └── README.md
 ```
@@ -96,6 +100,88 @@ No arquivo `app/(stack)/index.tsx`, remova ou comente as props `onTouchStart` e 
 - `npm run ios` - Abre no simulador iOS (apenas macOS)
 - `npm run web` - Abre no navegador web
 - `npm run lint` - Executa o linter
+
+## Push Notifications
+
+O app usa `expo-notifications` com o **Expo Push Service**: o nativo pega um
+`ExpoPushToken`, entrega pro PWA dentro do WebView, e o PWA vincula esse token ao
+usuário logado. O disparo é feito pelo backend contra o `exp.host`.
+
+> Push remota **não funciona no Expo Go nem em emulador** — precisa de um dev
+> build (`npm run android`) ou de um build da EAS num aparelho físico.
+
+### Credenciais (uma vez por projeto)
+
+1. **Android** — o `google-services.json` do projeto Firebase fica na raiz do
+   repo e é referenciado por `android.googleServicesFile` no `app.json`. Além
+   dele, suba a chave de service account FCM V1 pra EAS:
+
+   ```bash
+   eas credentials --platform android   # → Push Notifications: FCM V1 → upload do JSON da service account
+   ```
+
+   A service account sai no Firebase Console em
+   *Configurações do projeto → Contas de serviço → Gerar nova chave privada*.
+
+2. **iOS** — não precisa de Firebase. Basta a APNs Key na EAS:
+
+   ```bash
+   eas credentials --platform ios       # → Push Notifications: Manage your Apple Push Notifications Key
+   ```
+
+### Contrato com o PWA
+
+Assim que o token existe, o nativo injeta no WebView (a cada carregamento de
+página):
+
+```js
+window.__EXPO_PUSH_TOKEN__ = 'ExponentPushToken[xxxxxxxx]';
+window.__NATIVE_PLATFORM__ = 'android' | 'ios';
+window.dispatchEvent(new CustomEvent('expo:push-token', { detail: { token, platform } }));
+```
+
+Do lado do PWA, registrar o token junto do usuário autenticado:
+
+```js
+function registerPushToken({ token, platform }) {
+  return fetch('/api/push/register', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, platform }),
+  });
+}
+
+// cobre o caso do token já estar disponível antes do listener existir
+if (window.__EXPO_PUSH_TOKEN__) {
+  registerPushToken({
+    token: window.__EXPO_PUSH_TOKEN__,
+    platform: window.__NATIVE_PLATFORM__,
+  });
+}
+
+window.addEventListener('expo:push-token', (event) => registerPushToken(event.detail));
+```
+
+Vale enviar de novo a cada login (o token é do device, o vínculo é do usuário) e
+apagar o vínculo no logout.
+
+### Disparando uma notificação
+
+```bash
+curl -X POST https://exp.host/--/api/v2/push/send \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "to": "ExponentPushToken[xxxxxxxx]",
+    "title": "Novo pedido",
+    "body": "Fulano fez um pedido de R$ 42,00",
+    "channelId": "default",
+    "data": { "url": "/painel/pedidos/123" }
+  }'
+```
+
+O `data.url` é opcional: quando presente, tocar na notificação leva o WebView
+pra essa rota (inclusive com o app fechado). URLs fora da origem configurada em
+`app/config/url.json` são ignoradas.
 
 ## Build para Produção
 
