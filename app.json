@@ -11,7 +11,7 @@
     "splash": {
       "image": "./assets/images/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#f2e9d6"
+      "backgroundColor": "#ffffffff"
     },
     "ios": {
       "supportsTablet": true,
@@ -22,9 +22,7 @@
         "NSFaceIDUsageDescription": "Usado para entrar no app com Face ID.",
         "ITSAppUsesNonExemptEncryption": false
       },
-      "associatedDomains": [
-        "applinks:siscompy.com"
-      ]
+      "associatedDomains": ["applinks:siscompy.com"]
     },
     "androidNavigationBar": {
       "barStyle": "dark-content"
@@ -34,7 +32,7 @@
       "versionCode": 1,
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
-        "backgroundColor": "#f2e9d6",
+        "backgroundColor": "#ffffffff",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
@@ -62,10 +60,7 @@
               "host": "siscompy.com"
             }
           ],
-          "category": [
-            "BROWSABLE",
-            "DEFAULT"
-          ]
+          "category": ["BROWSABLE", "DEFAULT"]
         }
       ]
     },
