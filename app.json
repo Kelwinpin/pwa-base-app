@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "Anota aí",
-    "slug": "anotaai",
-    "version": "0.0.2",
+    "name": "ABC Goiânia",
+    "slug": "abc-goiania",
+    "version": "0.0.1",
     "orientation": "default",
     "icon": "./assets/images/icon.png",
     "scheme": "pwabaseapp",
@@ -15,7 +15,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.siscompy.anotaai",
+      "bundleIdentifier": "com.siscompy.abcgoiania",
       "buildNumber": "1.0.0",
       "infoPlist": {
         "NSCameraUsageDescription": "Usado para tirar fotos.",
@@ -28,8 +28,8 @@
       "barStyle": "dark-content"
     },
     "android": {
-      "package": "com.siscompy.anotaai",
-      "versionCode": 4,
+      "package": "com.siscompy.abcgoiania",
+      "versionCode": 1,
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#f2e9d6",
@@ -113,10 +113,7 @@
       "reactCompiler": true
     },
     "extra": {
-      "router": {},
-      "eas": {
-        "projectId": "30fb6c66-52b6-436e-9dad-0ae27b1a5bb3"
-      }
+      "router": {}
     },
     "owner": "kelwin.pin"
   }
