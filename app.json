@@ -2,8 +2,8 @@
   "expo": {
     "name": "Anota aí",
     "slug": "anotaai",
-    "version": "0.0.1",
-    "orientation": "portrait",
+    "version": "0.0.2",
+    "orientation": "default",
     "icon": "./assets/images/icon.png",
     "scheme": "pwabaseapp",
     "userInterfaceStyle": "automatic",
@@ -29,7 +29,7 @@
     },
     "android": {
       "package": "com.siscompy.anotaai",
-      "versionCode": 3,
+      "versionCode": 4,
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#f2e9d6",
