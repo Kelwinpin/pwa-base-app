@@ -22,7 +22,9 @@
         "NSFaceIDUsageDescription": "Usado para entrar no app com Face ID.",
         "ITSAppUsesNonExemptEncryption": false
       },
-      "associatedDomains": ["applinks:siscompy.com"]
+      "associatedDomains": [
+        "applinks:siscompy.com"
+      ]
     },
     "androidNavigationBar": {
       "barStyle": "dark-content"
@@ -60,7 +62,10 @@
               "host": "siscompy.com"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ]
     },
@@ -106,7 +111,11 @@
           "color": "#2a5580",
           "defaultChannel": "default"
         }
-      ]
+      ],
+      "expo-font",
+      "expo-image",
+      "expo-status-bar",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,
