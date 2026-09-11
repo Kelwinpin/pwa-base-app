@@ -22,7 +22,9 @@
         "NSFaceIDUsageDescription": "Usado para entrar no app com Face ID.",
         "ITSAppUsesNonExemptEncryption": false
       },
-      "associatedDomains": ["applinks:siscompy.com"]
+      "associatedDomains": [
+        "applinks:siscompy.com"
+      ]
     },
     "androidNavigationBar": {
       "barStyle": "dark-content"
@@ -60,7 +62,10 @@
               "host": "siscompy.com"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ]
     },
@@ -117,7 +122,10 @@
       "reactCompiler": true
     },
     "extra": {
-      "router": {}
+      "router": {},
+      "eas": {
+        "projectId": "c0b8f22d-98a3-483b-9593-af293fda154d"
+      }
     },
     "owner": "kelwin.pin"
   }
