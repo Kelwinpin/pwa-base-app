@@ -106,6 +106,13 @@
           "color": "#2a5580",
           "defaultChannel": "default"
         }
+      ],
+      [
+        "react-native-ble-plx",
+        {
+          "isBackgroundEnabled": false,
+          "bluetoothAlwaysPermission": "Usamos o Bluetooth para imprimir o extrato na impressora térmica."
+        }
       ]
     ],
     "experiments": {

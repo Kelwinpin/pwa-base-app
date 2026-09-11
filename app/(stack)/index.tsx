@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import WebView, { WebViewNavigation } from "react-native-webview";
 import type { ShouldStartLoadRequest } from "react-native-webview/lib/WebViewTypes";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
+import { printEscPos } from "@/lib/thermal-printer";
 import source from "../config/url.json";
 
 // Chave usada no SecureStore pra guardar o refresh token — permite login
@@ -86,6 +87,26 @@ function buildPushTokenScript(token: string): string {
           detail: {
             token: ${JSON.stringify(token)},
             platform: ${JSON.stringify(Platform.OS)},
+          },
+        })
+      );
+    })();
+    true;
+  `;
+}
+
+// Devolve pro PWA o resultado de uma impressão pedida via postMessage — ele
+// casa pelo `requestId` porque várias impressões podem ser disparadas em
+// sequência antes da anterior responder.
+function buildPrintResultScript(requestId: string, success: boolean, error?: string): string {
+  return `
+    (function () {
+      window.dispatchEvent(
+        new CustomEvent('native:print-result', {
+          detail: {
+            requestId: ${JSON.stringify(requestId)},
+            success: ${JSON.stringify(success)},
+            error: ${JSON.stringify(error ?? null)},
           },
         })
       );
@@ -455,7 +476,12 @@ export default function HomeScreen() {
         onNavigationStateChange={handleNavigationStateChange}
         onLoadEnd={() => setLoadCount((count) => count + 1)}
         onMessage={(event) => {
-          let data: { type?: string; refreshToken?: string } | null = null;
+          let data: {
+            type?: string;
+            refreshToken?: string;
+            requestId?: string;
+            base64?: string;
+          } | null = null;
           try {
             data = JSON.parse(event.nativeEvent.data);
           } catch {
@@ -471,6 +497,26 @@ export default function HomeScreen() {
             SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY).catch((err) =>
               console.warn("[Biometria] Erro ao remover token:", err),
             );
+          } else if (
+            data?.type === "PRINT_ESCPOS" &&
+            typeof data.requestId === "string" &&
+            typeof data.base64 === "string"
+          ) {
+            const { requestId, base64 } = data;
+            printEscPos(base64)
+              .then(() => {
+                webViewRef.current?.injectJavaScript(buildPrintResultScript(requestId, true));
+              })
+              .catch((err) => {
+                console.warn("[Impressora] Erro ao imprimir:", err);
+                webViewRef.current?.injectJavaScript(
+                  buildPrintResultScript(
+                    requestId,
+                    false,
+                    err instanceof Error ? err.message : "Erro desconhecido ao imprimir.",
+                  ),
+                );
+              });
           } else {
             console.log("[WebView Message]:", event.nativeEvent.data);
           }
