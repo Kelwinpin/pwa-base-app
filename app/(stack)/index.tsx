@@ -497,6 +497,8 @@ export default function HomeScreen() {
             SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY).catch((err) =>
               console.warn("[Biometria] Erro ao remover token:", err),
             );
+          } else if (data?.type === "OPEN_PRINTER_PICKER") {
+            router.push("/printer-picker");
           } else if (
             data?.type === "PRINT_ESCPOS" &&
             typeof data.requestId === "string" &&

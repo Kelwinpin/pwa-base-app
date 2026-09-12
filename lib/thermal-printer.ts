@@ -2,10 +2,8 @@ import { BleManager, State, type Device } from "react-native-ble-plx";
 import { PermissionsAndroid, Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
 
-// Guarda o id do último dispositivo BLE que imprimiu com sucesso, pra pular o
-// scan (que demora alguns segundos) nas próximas impressões.
-const LAST_PRINTER_KEY = "cd_last_printer_id";
-const SCAN_TIMEOUT_MS = 10000;
+// Impressora escolhida pelo lojista na tela de seleção (ver printer-picker.tsx).
+const SELECTED_PRINTER_KEY = "cd_selected_printer_id";
 const CONNECT_TIMEOUT_MS = 5000;
 const CHUNK_DELAY_MS = 20;
 // MTU padrão do BLE é só 23 bytes (20 de payload) — sem negociar um valor
@@ -13,20 +11,6 @@ const CHUNK_DELAY_MS = 20;
 // erro nenhum), e é exatamente por isso que a impressora não recebia quase
 // nada do conteúdo mesmo com o "sucesso" voltando pro app.
 const MTU_REQUEST = 247;
-
-/**
- * Impressoras POS58 clonadas não anunciam o UUID de serviço no pacote de
- * broadcast BLE (só revelam os serviços depois de conectar), então filtrar o
- * scan por UUID nunca encontra o aparelho. O nome anunciado, esse sim
- * aparece — é por ele que reconhecemos a impressora (modelo em uso: OIA-8388).
- */
-const PRINTER_NAME_HINTS = ["OIA"];
-
-function matchesPrinterName(name: string | null): boolean {
-  if (!name) return false;
-  const upper = name.toUpperCase();
-  return PRINTER_NAME_HINTS.some((hint) => upper.includes(hint));
-}
 
 let manager: BleManager | null = null;
 
@@ -60,6 +44,13 @@ async function ensurePermissions(): Promise<void> {
   if (denied) throw new Error("Permissão de Bluetooth negada.");
 }
 
+async function ensureBluetoothOn(bleManager: BleManager): Promise<void> {
+  const state = await bleManager.state();
+  if (state !== State.PoweredOn) {
+    throw new Error(`Bluetooth não está ligado no aparelho (estado: ${state}).`);
+  }
+}
+
 interface WritableCharacteristic {
   serviceUUID: string;
   characteristicUUID: string;
@@ -87,7 +78,10 @@ async function findWritableCharacteristic(device: Device): Promise<WritableChara
     const characteristics = await service.characteristics();
     console.log(
       `[Impressora] Serviço ${service.uuid}:`,
-      characteristics.map((c) => `${c.uuid} (write=${c.isWritableWithResponse}, writeNoResp=${c.isWritableWithoutResponse}, notify=${c.isNotifiable})`),
+      characteristics.map(
+        (c) =>
+          `${c.uuid} (write=${c.isWritableWithResponse}, writeNoResp=${c.isWritableWithoutResponse}, notify=${c.isNotifiable})`,
+      ),
     );
   }
 
@@ -107,70 +101,6 @@ async function findWritableCharacteristic(device: Device): Promise<WritableChara
     }
   }
   throw new Error("Impressora conectada, mas nenhuma característica de escrita foi encontrada.");
-}
-
-async function connectToSavedDevice(bleManager: BleManager): Promise<Device | null> {
-  const savedId = await SecureStore.getItemAsync(LAST_PRINTER_KEY);
-  if (!savedId) return null;
-
-  try {
-    const device = await bleManager.connectToDevice(savedId, { timeout: CONNECT_TIMEOUT_MS });
-    const discovered = await device.discoverAllServicesAndCharacteristics();
-    console.log(`[Impressora] Reconectado direto na última impressora usada: ${discovered.name ?? "sem nome"} (${discovered.id})`);
-    return discovered;
-  } catch (err) {
-    // Impressora desligada, fora de alcance ou pareada com outro id agora —
-    // sem problema, o caminho normal (scan) resolve.
-    console.log(`[Impressora] Não reconectou no id salvo (${savedId}), vai escanear de novo:`, err);
-    return null;
-  }
-}
-
-async function ensureBluetoothOn(bleManager: BleManager): Promise<void> {
-  const state = await bleManager.state();
-  if (state !== State.PoweredOn) {
-    throw new Error(`Bluetooth não está ligado no aparelho (estado: ${state}).`);
-  }
-}
-
-function scanForPrinter(bleManager: BleManager): Promise<Device> {
-  console.log(`[Impressora] Escaneando por até ${SCAN_TIMEOUT_MS}ms, procurando nome com:`, PRINTER_NAME_HINTS);
-
-  return new Promise((resolve, reject) => {
-    const seen = new Map<string, string>();
-
-    const timeout = setTimeout(() => {
-      bleManager.stopDeviceScan();
-      const list =
-        [...seen.entries()].map(([id, name]) => `${name} (${id})`).join(", ") || "nenhum dispositivo";
-      console.log(`[Impressora] Scan terminou sem achar. Vistos por Bluetooth: ${list}`);
-      reject(new Error(`Nenhuma impressora encontrada. Vistos por Bluetooth: ${list}`));
-    }, SCAN_TIMEOUT_MS);
-
-    bleManager.startDeviceScan(null, null, (error, device) => {
-      if (error) {
-        clearTimeout(timeout);
-        bleManager.stopDeviceScan();
-        console.log("[Impressora] Erro durante o scan:", error);
-        reject(error);
-        return;
-      }
-      if (!device) return;
-
-      const name = device.name ?? device.localName ?? "sem nome";
-      if (!seen.has(device.id)) {
-        console.log(`[Impressora] Visto no scan: ${name} (${device.id})`);
-      }
-      seen.set(device.id, name);
-
-      if (matchesPrinterName(device.name) || matchesPrinterName(device.localName)) {
-        clearTimeout(timeout);
-        bleManager.stopDeviceScan();
-        console.log(`[Impressora] Nome bateu, conectando em: ${name} (${device.id})`);
-        resolve(device);
-      }
-    });
-  });
 }
 
 /** Converte o MTU negociado num tamanho de pedaço em caracteres base64. */
@@ -193,6 +123,79 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// ---------------------------------------------------------------------------
+// Seleção de impressora — usado pela tela printer-picker.tsx
+// ---------------------------------------------------------------------------
+
+export interface ScannedPrinter {
+  id: string;
+  name: string;
+}
+
+export async function getSelectedPrinterId(): Promise<string | null> {
+  return SecureStore.getItemAsync(SELECTED_PRINTER_KEY);
+}
+
+export async function setSelectedPrinterId(id: string): Promise<void> {
+  await SecureStore.setItemAsync(SELECTED_PRINTER_KEY, id);
+}
+
+/**
+ * Escaneia todo aparelho Bluetooth por perto (sem filtro) e entrega cada um
+ * pro `onDevice`, pra tela de seleção montar a lista em tempo real. Devolve a
+ * função que para o scan — chamar ao sair da tela.
+ */
+export async function startPrinterScan(onDevice: (device: ScannedPrinter) => void): Promise<() => void> {
+  await ensurePermissions();
+  const bleManager = getManager();
+  await ensureBluetoothOn(bleManager);
+
+  // Enquanto uma impressora BLE está conectada, ela costuma parar de anunciar
+  // — some de qualquer scan novo, inclusive este. Solta uma conexão presa de
+  // uma impressão anterior (best-effort: se não tiver nada conectado, ou já
+  // tiver caído sozinha, isso só falha em silêncio).
+  const previouslySelected = await getSelectedPrinterId();
+  if (previouslySelected) {
+    try {
+      await bleManager.cancelDeviceConnection(previouslySelected);
+    } catch {
+      // sem conexão pra soltar — segue o baile
+    }
+  }
+
+  bleManager.startDeviceScan(null, null, (error, device) => {
+    if (error) {
+      console.log("[Impressora] Erro no scan do seletor:", error);
+      return;
+    }
+    if (!device) return;
+    onDevice({ id: device.id, name: device.name ?? device.localName ?? "Sem nome" });
+  });
+
+  return () => bleManager.stopDeviceScan();
+}
+
+// ---------------------------------------------------------------------------
+// Impressão
+// ---------------------------------------------------------------------------
+
+async function connectToSelectedDevice(bleManager: BleManager): Promise<Device> {
+  const selectedId = await getSelectedPrinterId();
+  if (!selectedId) {
+    throw new Error("Nenhuma impressora selecionada. Escolha uma em Configurações.");
+  }
+
+  try {
+    const device = await bleManager.connectToDevice(selectedId, { timeout: CONNECT_TIMEOUT_MS });
+    const discovered = await device.discoverAllServicesAndCharacteristics();
+    console.log(`[Impressora] Conectado em: ${discovered.name ?? "sem nome"} (${discovered.id})`);
+    return discovered;
+  } catch (err) {
+    console.log(`[Impressora] Falha ao conectar na impressora selecionada (${selectedId}):`, err);
+    throw new Error("Não foi possível conectar na impressora. Confirme que ela está ligada e por perto.");
+  }
+}
+
 /** `base64` já vem como bytes ESC/POS prontos, montados pelo PWA. */
 export async function printEscPos(base64: string): Promise<void> {
   console.log(`[Impressora] Pedido de impressão recebido: ${base64.length} caracteres base64.`);
@@ -201,51 +204,56 @@ export async function printEscPos(base64: string): Promise<void> {
   const bleManager = getManager();
   await ensureBluetoothOn(bleManager);
 
-  let device = await connectToSavedDevice(bleManager);
-  if (!device) {
-    const found = await scanForPrinter(bleManager);
-    const connected = await found.connect();
-    device = await connected.discoverAllServicesAndCharacteristics();
-    await SecureStore.setItemAsync(LAST_PRINTER_KEY, device.id);
-  }
+  let device = await connectToSelectedDevice(bleManager);
 
   try {
-    // iOS ignora o valor pedido e negocia o MTU sozinho; alguns chips Android
-    // nem suportam a chamada — nos dois casos seguimos com o que já temos.
-    device = await device.requestMTU(MTU_REQUEST);
-  } catch (err) {
-    console.log("[Impressora] requestMTU falhou, seguindo com o MTU atual:", err);
-  }
-  console.log(`[Impressora] MTU em uso: ${device.mtu}`);
-
-  const { serviceUUID, characteristicUUID, withoutResponse } = await findWritableCharacteristic(device);
-  console.log(
-    `[Impressora] Característica de escrita: service=${serviceUUID} characteristic=${characteristicUUID} withoutResponse=${withoutResponse}`,
-  );
-
-  const chunkChars = base64ChunkSizeForMtu(device.mtu);
-  const chunks = chunkBase64(base64, chunkChars);
-  console.log(`[Impressora] Enviando em ${chunks.length} pedaço(s) de até ${chunkChars} caracteres base64.`);
-
-  for (const [index, chunk] of chunks.entries()) {
-    if (withoutResponse) {
-      await bleManager.writeCharacteristicWithoutResponseForDevice(
-        device.id,
-        serviceUUID,
-        characteristicUUID,
-        chunk,
-      );
-    } else {
-      await bleManager.writeCharacteristicWithResponseForDevice(
-        device.id,
-        serviceUUID,
-        characteristicUUID,
-        chunk,
-      );
+    try {
+      // iOS ignora o valor pedido e negocia o MTU sozinho; alguns chips Android
+      // nem suportam a chamada — nos dois casos seguimos com o que já temos.
+      device = await device.requestMTU(MTU_REQUEST);
+    } catch (err) {
+      console.log("[Impressora] requestMTU falhou, seguindo com o MTU atual:", err);
     }
-    console.log(`[Impressora] Pedaço ${index + 1}/${chunks.length} enviado.`);
-    await sleep(CHUNK_DELAY_MS);
-  }
+    console.log(`[Impressora] MTU em uso: ${device.mtu}`);
 
-  console.log(`[Impressora] Impressão concluída em ${device.name ?? "sem nome"} (${device.id}).`);
+    const { serviceUUID, characteristicUUID, withoutResponse } = await findWritableCharacteristic(device);
+    console.log(
+      `[Impressora] Característica de escrita: service=${serviceUUID} characteristic=${characteristicUUID} withoutResponse=${withoutResponse}`,
+    );
+
+    const chunkChars = base64ChunkSizeForMtu(device.mtu);
+    const chunks = chunkBase64(base64, chunkChars);
+    console.log(`[Impressora] Enviando em ${chunks.length} pedaço(s) de até ${chunkChars} caracteres base64.`);
+
+    for (const [index, chunk] of chunks.entries()) {
+      if (withoutResponse) {
+        await bleManager.writeCharacteristicWithoutResponseForDevice(
+          device.id,
+          serviceUUID,
+          characteristicUUID,
+          chunk,
+        );
+      } else {
+        await bleManager.writeCharacteristicWithResponseForDevice(
+          device.id,
+          serviceUUID,
+          characteristicUUID,
+          chunk,
+        );
+      }
+      console.log(`[Impressora] Pedaço ${index + 1}/${chunks.length} enviado.`);
+      await sleep(CHUNK_DELAY_MS);
+    }
+
+    console.log(`[Impressora] Impressão concluída em ${device.name ?? "sem nome"} (${device.id}).`);
+  } finally {
+    // Solta a conexão pra impressora voltar a anunciar — do jeito que ela
+    // estava antes de imprimir, disponível pra um próximo scan (inclusive o
+    // da tela de seleção). Sem isso ela fica "presa" até o app reiniciar.
+    try {
+      await bleManager.cancelDeviceConnection(device.id);
+    } catch (err) {
+      console.log("[Impressora] Erro ao desconectar após imprimir (ignorado):", err);
+    }
+  }
 }
